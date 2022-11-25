@@ -6,7 +6,6 @@ const { Server } = require("socket.io");
 const io = new Server(server);
 
 const logs = [];        // Chat logs
-const gameInProgress = false;
 const chat = {
     toAll:    true,
     toClient: false
@@ -23,12 +22,13 @@ const Tile = {
     BLACK:  3,
     YELLOW: 4
 }
+var gameInProgress = false;
 var bag = [];           // Bag of tiles
-let sockets = [];       // Socket IDs of all connected sockets
-let playersReady = [];  // Socket IDs of all players that are ready
-let players = [];       // Socket IDs of all players in the game
+var sockets = [];       // Socket IDs of all connected sockets
+var playersReady = [];  // Socket IDs of all players that are ready
+var players = [];       // Socket IDs of all players in the game
 var factories = [];     // Factories
-let rooms = [];         // Unused
+var rooms = [];         // Unused
 
 const emptyBoard = {
     "patternLines": [
@@ -268,7 +268,7 @@ function fillFactories() {
     return factoriesReturn;
 }
 
-// Performs scoring phase of a player's board. Can trigger end game flag, and includes end-game scoring.
+// Performs scoring phase of a player's board and includes end-game scoring.
 /**
 player = {
     "id": string,
@@ -288,15 +288,64 @@ player = {
             [-1,-1,-1,-1,-1],
             [-1,-1,-1,-1,-1],
         ],
-        "floor": [-1,-1,-1,-1,-1,-1,-1]
+        "floor": []
     }
 }
  */
 function calculateScore(player) {
-    for (let i = 0; i < player.board.patternLines.length; i++) {
+    for (let i = 0; i < 4; i++) { // Go down the array of patterns
         if (!(player.board.patternLines[i][0] == -1)) { // If pattern is complete
+            [y,x] = [i, i % 5];
+            player.board.wall[i][i % 5] = player.board.patternLines[i][0]; // Change tile color in wall to tile in complete pattern
 
+            player.score += 1 
+                + countConnected(y, x, "up", player.board.wall)
+                + countConnected(y, x, "down", player.board.wall)
+                + countConnected(y, x, "left", player.board.wall)
+                + countConnected(y, x, "right", player.board.wall);
         }
+    }
+    if (!gameInProgress) {
+        // Check rows (+2)
+        for (let i = 0; i < 5; i++) {
+            if (!(player.board.wall[i].includes(-1))) {
+                score += 2;
+            }
+        }
+        // Check Columns (+7)
+        // TODO
+        // Check Complete Color (+10)
+        // TODO
+    }
+}
+
+// Recursive function to count number of tiles in a specified cardinal direction according to the given coordinate
+function countConnected(y, x, direction, wall) {
+    switch (direction) {
+        case "up":
+            if (wall[y-1] == null || wall[y-1][x] == -1) {
+                return 0;
+            } else {
+                return 1 + addLine(y-1, x, direction, wall);
+            }
+        case "down":
+            if (wall[y+1] == null || wall[y+1][x] == -1) {
+                return 0;
+            } else {
+                return 1 + addLine(y+1, x, direction, wall);
+            }
+        case "left":
+            if (wall[y][x-1] == null || wall[y][x-1] == -1) {
+                return 0;
+            } else {
+                return 1 + addLine(y, x-1, direction, wall);
+            }
+        case "right":
+            if (wall[y][x+1] == null || wall[y][x+1] == -1) {
+                return 0;
+            } else {
+                return 1 + addLine(y, x+1, direction, wall);
+            }
     }
 }
 
@@ -324,3 +373,9 @@ function shuffle(array) {
  * Client:
  * -everything
 */
+
+
+// // Check end-game status (wall row complete)
+// if (!(player.board.wall[i].includes(-1))) {
+//     gameInProgress = false;
+// }
